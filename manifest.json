@@ -1,0 +1,20 @@
+{
+    "name": "Comandas Pizzaria",
+    "short_name": "Comandas",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#d3bb9c",
+    "theme_color": "#d3bb9c",
+    "icons": [
+        {
+            "src": "./Pizzalogo.avif",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "./Pizzalogo.avif",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

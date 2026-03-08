@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pizzaria - Comandas</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#d3bb9c" />
+  <link rel="icon"
+    href="https://imgs.search.brave.com/FZ8L4zz5CebWuoBkD92zWEpKcO8qDtMyYfsb7YsE21c/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9zdGF0/aWMudmVjdGVlenku/Y29tL3N5c3RlbS9y/ZXNvdXJjZXMvdGh1/bWJuYWlscy8wMTkv/NjE3LzU0Ni9zbWFs/bC9waXp6YS1jb2xv/ci1pY29uLXBuZy5w/bmc"
+    type="image/x-icon">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap"
+    rel="stylesheet">
+  
+</head>
+
+<body>
+
+  <!-- Mobile header -->
+  <div class="topbar">
+    <button class="btn-menu" id="btnMenu" onclick="toggleSidebar()">☰</button>
+    <h1>Comandas</h1>
+    <button class="btn-nova-comanda-top" onclick="novaComanda()">+ Nova</button>
+  </div>
+
+  <!-- Sobreposição para a barra lateral -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1>Precificação de Comandas</h1>
+    </div>
+
+    <div id="labelAtivas" class="sidebar-section-title" style="display:none">Abertas</div>
+    <div class="comandas-ativas" id="comandasAtivas"></div>
+
+    <div class="sidebar-section-title">Cardápio</div>
+    <div class="cardapio-scroll" id="cardapioScroll"></div>
+
+    <div class="custom-section">
+      <label>Item avulso</label>
+      <input type="text" id="nomeCustom" placeholder="Nome do item">
+      <input type="number" step="0.01" id="valorCustom" placeholder="R$ 0,00">
+      <input type="number" step="1" id="quantidadeCustom" placeholder="Quantidade">
+      <button class="btn-add-custom" onclick="adicionarItemCustom()">
+        + Adicionar ao selecionado
+      </button>
+    </div>
+
+    <button class="btn-nova-comanda" onclick="novaComanda()">
+      <span style="font-size:1.1rem">+</span> Nova Comanda
+    </button>
+  </div>
+
+  <div class="workspace" id="workspace">
+    <div class="workspace-hint" id="hint">
+      <div class="big">Sem Comanda</div>
+      <p>Clique em "Nova Comanda" para começar</p>
+      <p style="margin-top:6px;">Arraste as comandas pela tela</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ==================== RESPONSIVIDADE ====================
+    function isMobile() {
+      return window.innerWidth <= 768;
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const open = sidebar.classList.toggle('open');
+      overlay.classList.toggle('visible', open);
+    }
+
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('visible');
+    }
+
+    function applyMobileWorkspace() {
+      const workspace = document.getElementById('workspace');
+      if (isMobile()) {
+        workspace.classList.add('mobile-flow');
+      } else {
+        workspace.classList.remove('mobile-flow');
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      applyMobileWorkspace();
+      comandas.forEach(c => renderizarPostIt(c));
+    });
+
+    // ==================== CONSTANTES E CONFIGURAÇÕES ====================
+    const CARDAPIO = [
+      {
+        categoria: "Pizzas Tradicionais",
+        itens: [
+          { nome: "Pizza Mussarela", valor: 38.00 },
+          { nome: "Pizza Calabresa", valor: 42.00 },
+          { nome: "Pizza Portuguesa", valor: 45.00 },
+          { nome: "Pizza Marguerita", valor: 43.00 },
+          { nome: "Pizza Napolitana", valor: 44.00 }
+        ]
+      },
+      {
+        categoria: "Pizzas Especiais",
+        itens: [
+          { nome: "Pizza Frango com Catupiry", valor: 48.00 },
+          { nome: "Pizza Quatro Queijos", valor: 47.00 },
+          { nome: "Pizza Bacon", valor: 49.00 },
+          { nome: "Pizza Atum", valor: 46.00 },
+          { nome: "Pizza Carne Seca", valor: 52.00 }
+        ]
+      },
+      {
+        categoria: "Pizzas Doces",
+        itens: [
+          { nome: "Pizza Chocolate", valor: 40.00 },
+          { nome: "Pizza Chocolate com Morango", valor: 44.00 },
+          { nome: "Pizza Banana com Canela", valor: 38.00 },
+          { nome: "Pizza Prestígio", valor: 42.00 }
+        ]
+      },
+      {
+        categoria: "Bebidas",
+        itens: [
+          { nome: "Refrigerante Lata", valor: 6.00 },
+          { nome: "Refrigerante 600ml", valor: 8.00 },
+          { nome: "Refrigerante 2L", valor: 12.00 },
+          { nome: "Água Mineral", valor: 4.00 },
+          { nome: "Suco Natural", valor: 9.00 }
+        ]
+      }
+    ];
+
+    const CORES_POSTIT = ['#fffde7'];
+    const CONFIGURACAO = {
+      larguraPostit: 270,
+      alturaMinima: 80,
+      espacamento: 25,
+      colunas: 6,
+      linhas: 5,
+      duracaoToast: 2200
+    };
+
+    // ==================== ESTADO GLOBAL ====================
+    let comandas = [];
+    let comandaSelecionadaId = null;
+    let contadorZIndex = 10;
+    let indiceCorAtual = 0;
+
+    // ==================== FUNÇÕES DE UTILIDADE ====================
+    function formatarMoeda(valor) {
+      return `R$ ${valor.toFixed(2).replace('.', ',')}`;
+    }
+
+    function calcularTotalComanda(comanda) {
+      return comanda.itens.reduce((total, item) => total + item.subtotal, 0);
+    }
+
+    function obterProximaCor() {
+      const cor = CORES_POSTIT[indiceCorAtual % CORES_POSTIT.length];
+      indiceCorAtual++;
+      return cor;
+    }
+
+    function obterProximoZIndex() {
+      return contadorZIndex++;
+    }
+
+    function encontrarComanda(id) {
+      return comandas.find(c => c.id === id);
+    }
+
+    function atualizarZIndexComanda(id) {
+      const comanda = encontrarComanda(id);
+      if (comanda) comanda.z = obterProximoZIndex();
+    }
+
+    // ==================== MANIPULAÇÃO DE COMANDA ====================
+    function criarComanda() {
+      const cor = obterProximaCor();
+      const offset = comandas.length;
+      const x = 30 + (offset % CONFIGURACAO.colunas) * CONFIGURACAO.espacamento;
+      const y = 30 + (offset % CONFIGURACAO.linhas) * CONFIGURACAO.espacamento;
+      const id = Date.now();
+      return { id, itens: [], cor, x, y, z: obterProximoZIndex(), mesa: 0, pessoas: 0 };
+    }
+
+    function adicionarItemComanda(comanda, item) {
+      const itemExistente = comanda.itens.find(i => i.nome === item.nome);
+      if (itemExistente) {
+        itemExistente.quantidade++;
+        itemExistente.subtotal = itemExistente.quantidade * itemExistente.valor;
+      } else {
+        comanda.itens.push({
+          nome: item.nome,
+          valor: item.valor,
+          quantidade: item.quantidade || 1,
+          subtotal: item.valor * (item.quantidade || 1)
+        });
+      }
+    }
+
+    function removerItemComanda(comanda, indice) {
+      const item = comanda.itens[indice];
+      if (item.quantidade > 1) {
+        item.quantidade--;
+        item.subtotal = item.quantidade * item.valor;
+      } else {
+        comanda.itens.splice(indice, 1);
+      }
+    }
+
+    // ==================== TOAST ====================
+    let temporizadorToast;
+
+    function mostrarToast(mensagem) {
+      const toast = document.getElementById('toast');
+      toast.textContent = mensagem;
+      toast.classList.add('show');
+      clearTimeout(temporizadorToast);
+      temporizadorToast = setTimeout(() => toast.classList.remove('show'), CONFIGURACAO.duracaoToast);
+    }
+
+    // ==================== CARDÁPIO ====================
+    function renderizarCardapio() {
+      const container = document.getElementById('cardapioScroll');
+      container.innerHTML = '';
+      CARDAPIO.forEach(categoria => {
+        const rotulo = document.createElement('div');
+        rotulo.className = 'categoria-label';
+        rotulo.textContent = categoria.categoria;
+        container.appendChild(rotulo);
+
+        categoria.itens.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'cardapio-item';
+          div.innerHTML = `
+            <div class="cardapio-item-info">
+              <div class="cardapio-item-nome">${item.nome}</div>
+              <div class="cardapio-item-preco">${formatarMoeda(item.valor)}</div>
+            </div>
+            <button class="btn-add-item">+</button>
+          `;
+          div.querySelector('.btn-add-item').addEventListener('click', () => {
+            adicionarItem(item);
+            if (isMobile()) closeSidebar();
+          });
+          container.appendChild(div);
+        });
+      });
+    }
+
+    // ==================== POST-IT ====================
+    function renderizarPostIt(comanda) {
+      removerPostItAntigo(comanda.id);
+      const workspace = document.getElementById('workspace');
+      const elemento = criarElementoPostIt(comanda);
+      configurarInteracao(elemento, comanda);
+      workspace.appendChild(elemento);
+      atualizarClasseSelecionada(comanda.id);
+    }
+
+    function removerPostItAntigo(id) {
+      const el = document.getElementById(`pi-${id}`);
+      if (el) el.remove();
+    }
+
+    function criarElementoPostIt(comanda) {
+      const elemento = document.createElement('div');
+      elemento.className = `postit ${comandaSelecionadaId === comanda.id ? 'selected' : ''}`;
+      elemento.id = `pi-${comanda.id}`;
+
+      if (!isMobile()) {
+        elemento.style.cssText = `
+          background: ${comanda.cor};
+          left: ${comanda.x}px;
+          top: ${comanda.y}px;
+          z-index: ${comanda.z}
+        `;
+      } else {
+        elemento.style.background = comanda.cor;
+      }
+
+      elemento.innerHTML = gerarHTMLPostIt(comanda);
+      elemento.addEventListener('mousedown', () => selecionarComanda(comanda.id));
+      elemento.addEventListener('touchstart', () => selecionarComanda(comanda.id), { passive: true });
+      return elemento;
+    }
+
+    function gerarHTMLPostIt(comanda) {
+      const total = calcularTotalComanda(comanda);
+      const valorPorPessoa = comanda.pessoas > 0
+        ? formatarMoeda(total / comanda.pessoas) + ' /p'
+        : '';
+
+      return `
+        <div class="postit-header" id="hdr-${comanda.id}">
+          <div class="postit-mesa">
+            <span>Mesa</span>
+            <input type="number" placeholder="—" min="1" value="${comanda.mesa}"
+              onchange="atualizarMesa(${comanda.id}, this.value)"
+              onmousedown="event.stopPropagation()">
+          </div>
+          <button class="btn-fechar" onmousedown="event.stopPropagation()"
+            onclick="fecharComanda(${comanda.id})">✕</button>
+        </div>
+        <div class="postit-itens">
+          ${gerarItensPostIt(comanda)}
+        </div>
+        <div class="postit-footer">
+          <div class="footer-row">
+            <span class="footer-label">Total</span>
+            <span class="footer-value">${formatarMoeda(total)}</span>
+          </div>
+          <div class="footer-divisor">
+            <label>÷ pessoas</label>
+            <input type="number" min="1" value="${comanda.pessoas || ''}" placeholder="1"
+              onmousedown="event.stopPropagation()"
+              oninput="atualizarPessoas(${comanda.id}, this.value)">
+            <span class="footer-por-pessoa" id="pp-${comanda.id}">${valorPorPessoa}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function gerarItensPostIt(comanda) {
+      if (comanda.itens.length === 0) {
+        return '<div class="postit-empty">Sem itens ainda</div>';
+      }
+      return comanda.itens.map((item, indice) => `
+        <div class="postit-item-row">
+          <span class="postit-item-nome">${item.nome}</span>
+          <span class="postit-item-qty">${item.quantidade}x</span>
+          <span class="postit-item-sub">${formatarMoeda(item.subtotal)}</span>
+          <button class="postit-btn-rm" onmousedown="event.stopPropagation()"
+            onclick="removerItem(${comanda.id}, ${indice})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    // ==================== ARRASTAR E SOLTAR (apenas mobile) ====================
+    function configurarInteracao(elemento, comanda) {
+      if (isMobile()) return; 
+
+      const cabecalho = elemento.querySelector(`#hdr-${comanda.id}`);
+      const workspace = document.getElementById('workspace');
+
+      cabecalho.addEventListener('mousedown', (evento) => {
+        if (evento.target.tagName === 'INPUT' || evento.target.tagName === 'BUTTON') return;
+
+        selecionarComanda(comanda.id);
+        elemento.classList.add('dragging');
+
+        const rectWorkspace = workspace.getBoundingClientRect();
+        const rectElemento = elemento.getBoundingClientRect();
+        const offsetX = evento.clientX - rectElemento.left;
+        const offsetY = evento.clientY - rectElemento.top;
+
+        function aoMover(eventoMouse) {
+          const novaX = Math.max(0, Math.min(
+            eventoMouse.clientX - rectWorkspace.left - offsetX,
+            rectWorkspace.width - CONFIGURACAO.larguraPostit
+          ));
+          const novaY = Math.max(0, Math.min(
+            eventoMouse.clientY - rectWorkspace.top - offsetY,
+            rectWorkspace.height - CONFIGURACAO.alturaMinima
+          ));
+          comanda.x = novaX;
+          comanda.y = novaY;
+          elemento.style.left = novaX + 'px';
+          elemento.style.top = novaY + 'px';
+        }
+
+        function aoSoltar() {
+          elemento.classList.remove('dragging');
+          document.removeEventListener('mousemove', aoMover);
+          document.removeEventListener('mouseup', aoSoltar);
+        }
+
+        document.addEventListener('mousemove', aoMover);
+        document.addEventListener('mouseup', aoSoltar);
+        evento.preventDefault();
+      });
+    }
+
+    // ==================== SELEÇÃO E ATUALIZAÇÃO ====================
+    function selecionarComanda(id) {
+      comandaSelecionadaId = id;
+      document.querySelectorAll('.postit').forEach(el => el.classList.remove('selected'));
+      atualizarZIndexComanda(id);
+
+      const elemento = document.getElementById(`pi-${id}`);
+      if (elemento) {
+        if (!isMobile()) elemento.style.zIndex = encontrarComanda(id).z;
+        elemento.classList.add('selected');
+      }
+
+      atualizarSidebar();
+    }
+
+    function atualizarClasseSelecionada(id) {
+      const elemento = document.getElementById(`pi-${id}`);
+      if (elemento && comandaSelecionadaId === id) elemento.classList.add('selected');
+    }
+
+    function atualizarMesa(id, valor) {
+      const comanda = encontrarComanda(id);
+      if (comanda) {
+        comanda.mesa = parseInt(valor) || 0;
+        atualizarSidebar();
+      }
+    }
+
+    function atualizarPessoas(id, valor) {
+      const comanda = encontrarComanda(id);
+      if (!comanda) return;
+      comanda.pessoas = parseInt(valor) || 0;
+      const el = document.getElementById(`pp-${id}`);
+      if (el) {
+        const total = calcularTotalComanda(comanda);
+        el.textContent = comanda.pessoas > 0 ? formatarMoeda(total / comanda.pessoas) + ' /p' : '';
+      }
+    }
+
+    // ==================== NEGÓCIO ====================
+    function novaComanda() {
+      document.getElementById('hint').style.display = 'none';
+      const comanda = criarComanda();
+      comandas.push(comanda);
+      comandaSelecionadaId = comanda.id;
+      renderizarPostIt(comanda);
+      atualizarSidebar();
+      if (isMobile()) closeSidebar();
+    }
+
+    function adicionarItem(item) {
+      if (!comandaSelecionadaId) {
+        mostrarToast('Selecione uma comanda primeiro!');
+        return;
+      }
+      const comanda = encontrarComanda(comandaSelecionadaId);
+      if (!comanda) return;
+      adicionarItemComanda(comanda, item);
+      renderizarPostIt(comanda);
+      selecionarComanda(comanda.id);
+      mostrarToast(`${item.nome} adicionado!`);
+    }
+
+    function removerItem(id, indice) {
+      const comanda = encontrarComanda(id);
+      if (!comanda) return;
+      removerItemComanda(comanda, indice);
+      renderizarPostIt(comanda);
+      selecionarComanda(comanda.id);
+    }
+
+    function fecharComanda(id) {
+      const comanda = encontrarComanda(id);
+      const identificador = comanda?.mesa ? `Mesa ${comanda.mesa}` : 'esta comanda';
+      if (!confirm(`Encerrar ${identificador}?`)) return;
+      document.getElementById(`pi-${id}`)?.remove();
+      comandas = comandas.filter(c => c.id !== id);
+      if (comandaSelecionadaId === id) {
+        comandaSelecionadaId = comandas.length ? comandas[comandas.length - 1].id : null;
+      }
+      atualizarSidebar();
+      if (comandas.length === 0) document.getElementById('hint').style.display = '';
+    }
+
+    function adicionarItemCustom() {
+      const nome = document.getElementById('nomeCustom').value.trim();
+      const valor = parseFloat(document.getElementById('valorCustom').value);
+      const quantidade = document.getElementById('quantidadeCustom').value;
+
+      if (isNaN(quantidade) || quantidade < 1) { mostrarToast('Quantidade inválida!'); return; }
+      if (!nome || isNaN(valor) || valor <= 0) { mostrarToast('Preencha nome e valor!'); return; }
+
+      adicionarItem({ nome, valor, quantidade });
+      document.getElementById('nomeCustom').value = '';
+      document.getElementById('valorCustom').value = '';
+      document.getElementById('quantidadeCustom').value = '';
+    }
+
+    // ==================== SIDEBAR ====================
+    function atualizarSidebar() {
+      const rotulo = document.getElementById('labelAtivas');
+      const container = document.getElementById('comandasAtivas');
+
+      if (comandas.length === 0) {
+        container.innerHTML = '';
+        rotulo.style.display = 'none';
+        return;
+      }
+
+      rotulo.style.display = '';
+      container.innerHTML = comandas.map(comanda => {
+        const total = calcularTotalComanda(comanda);
+        const descricaoMesa = comanda.mesa ? `Mesa ${comanda.mesa}` : 'Sem mesa';
+        const classeAtiva = comandaSelecionadaId === comanda.id ? 'active' : '';
+        return `
+          <button class="comanda-ativa-btn ${classeAtiva}" onclick="selecionarComanda(${comanda.id})">
+            <span>${descricaoMesa}</span>
+            <span>${formatarMoeda(total)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    // ==================== EXPOR GLOBAIS ====================
+    window.novaComanda = novaComanda;
+    window.selecionarComanda = selecionarComanda;
+    window.atualizarMesa = atualizarMesa;
+    window.atualizarPessoas = atualizarPessoas;
+    window.adicionarItem = adicionarItem;
+    window.removerItem = removerItem;
+    window.fecharComanda = fecharComanda;
+    window.adicionarItemCustom = adicionarItemCustom;
+
+    // ==================== INICIALIZAÇÃO ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      renderizarCardapio();
+      applyMobileWorkspace();
+    });
+  </script>
+</body>
+
+</html>
