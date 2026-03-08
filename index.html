@@ -9,24 +9,21 @@
   <link rel="stylesheet" href="style.css">
   <meta name="theme-color" content="#d3bb9c" />
   <link rel="icon"
-    href="https://imgs.search.brave.com/FZ8L4zz5CebWuoBkD92zWEpKcO8qDtMyYfsb7YsE21c/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9zdGF0/aWMudmVjdGVlenku/Y29tL3N5c3RlbS9y/ZXNvdXJjZXMvdGh1/bWJuYWlscy8wMTkv/NjE3LzU0Ni9zbWFs/bC9waXp6YS1jb2xv/ci1pY29uLXBuZy5w/bmc"
+    href="https://imgs.search.brave.com/FZ8L4zz5CebWuoBkD92zWEpKcO8qDtMyYfsb7YsE21c/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9zdGF0/aWMudmVjdGVlenku/Y29tL3N5c3RlbS9yZXNvdXJjZXMvdGh1/bWJuYWlscy8wMTkv/NjE3LzU0Ni9zbWFs/bC9waXp6YS1jb2xv/ci1pY29uLXBuZy5w/bmc"
     type="image/x-icon">
   <link
     href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap"
     rel="stylesheet">
-  
 </head>
 
 <body>
 
-  <!-- Mobile header -->
   <div class="topbar">
     <button class="btn-menu" id="btnMenu" onclick="toggleSidebar()">☰</button>
     <h1>Comandas</h1>
     <button class="btn-nova-comanda-top" onclick="novaComanda()">+ Nova</button>
   </div>
 
-  <!-- Sobreposição para a barra lateral -->
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
   <div class="sidebar" id="sidebar">
@@ -184,6 +181,14 @@
       if (comanda) comanda.z = obterProximoZIndex();
     }
 
+    // Checa se algum input dentro do post-it está com foco
+    function algumInputFocadoNoPostIt(id) {
+      const el = document.getElementById(`pi-${id}`);
+      if (!el) return false;
+      const ativo = document.activeElement;
+      return ativo && ativo.tagName === 'INPUT' && el.contains(ativo);
+    }
+
     // ==================== MANIPULAÇÃO DE COMANDA ====================
     function criarComanda() {
       const cor = obterProximaCor();
@@ -260,13 +265,37 @@
     }
 
     // ==================== POST-IT ====================
+
+    // Renderiza o post-it completo, mas pula se um input estiver focado nele
     function renderizarPostIt(comanda) {
+      if (algumInputFocadoNoPostIt(comanda.id)) {
+        // Atualiza só o que é seguro: lista de itens e footer
+        atualizarItensNoDOM(comanda);
+        atualizarFooterNoDOM(comanda);
+        return;
+      }
+
       removerPostItAntigo(comanda.id);
       const workspace = document.getElementById('workspace');
       const elemento = criarElementoPostIt(comanda);
       configurarInteracao(elemento, comanda);
       workspace.appendChild(elemento);
       atualizarClasseSelecionada(comanda.id);
+    }
+
+    function atualizarItensNoDOM(comanda) {
+      const el = document.getElementById(`itens-${comanda.id}`);
+      if (el) el.innerHTML = gerarItensPostIt(comanda);
+    }
+
+    function atualizarFooterNoDOM(comanda) {
+      const total = calcularTotalComanda(comanda);
+      const elTotal = document.querySelector(`#pi-${comanda.id} .footer-value`);
+      if (elTotal) elTotal.textContent = formatarMoeda(total);
+      const elPp = document.getElementById(`pp-${comanda.id}`);
+      if (elPp && comanda.pessoas > 0) {
+        elPp.textContent = formatarMoeda(total / comanda.pessoas) + ' /p';
+      }
     }
 
     function removerPostItAntigo(id) {
@@ -292,15 +321,13 @@
 
       elemento.innerHTML = gerarHTMLPostIt(comanda);
 
-      // FIX: No mobile, apenas selecionar sem recriar o DOM quando o toque é em input/button
-      elemento.addEventListener('mousedown', (e) => {
+      // Selecionar ao clicar/tocar — mas NUNCA quando o alvo é input ou button
+      function handleSelect(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
         selecionarComanda(comanda.id);
-      });
-      elemento.addEventListener('touchstart', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-        selecionarComanda(comanda.id);
-      }, { passive: true });
+      }
+      elemento.addEventListener('mousedown', handleSelect);
+      elemento.addEventListener('touchstart', handleSelect, { passive: true });
 
       return elemento;
     }
@@ -315,15 +342,23 @@
         <div class="postit-header" id="hdr-${comanda.id}">
           <div class="postit-mesa">
             <span>Mesa</span>
-            <input type="number" inputmode="numeric" placeholder="—" min="1" value="${comanda.mesa || ''}"
+            <input
+              type="number"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="—"
+              min="1"
+              value="${comanda.mesa || ''}"
               onchange="atualizarMesa(${comanda.id}, this.value)"
               onmousedown="event.stopPropagation()"
-              ontouchstart="event.stopPropagation()">
+              ontouchstart="event.stopPropagation(); event.stopImmediatePropagation();">
           </div>
-          <button class="btn-fechar" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
+          <button class="btn-fechar"
+            onmousedown="event.stopPropagation()"
+            ontouchstart="event.stopPropagation()"
             onclick="fecharComanda(${comanda.id})">✕</button>
         </div>
-        <div class="postit-itens">
+        <div class="postit-itens" id="itens-${comanda.id}">
           ${gerarItensPostIt(comanda)}
         </div>
         <div class="postit-footer">
@@ -333,9 +368,15 @@
           </div>
           <div class="footer-divisor">
             <label>÷ pessoas</label>
-            <input type="number" inputmode="numeric" min="1" value="${comanda.pessoas || ''}" placeholder="1"
+            <input
+              type="number"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              min="1"
+              value="${comanda.pessoas || ''}"
+              placeholder="1"
               onmousedown="event.stopPropagation()"
-              ontouchstart="event.stopPropagation()"
+              ontouchstart="event.stopPropagation(); event.stopImmediatePropagation();"
               oninput="atualizarPessoas(${comanda.id}, this.value)">
             <span class="footer-por-pessoa" id="pp-${comanda.id}">${valorPorPessoa}</span>
           </div>
@@ -352,7 +393,9 @@
           <span class="postit-item-nome">${item.nome}</span>
           <span class="postit-item-qty">${item.quantidade}x</span>
           <span class="postit-item-sub">${formatarMoeda(item.subtotal)}</span>
-          <button class="postit-btn-rm" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
+          <button class="postit-btn-rm"
+            onmousedown="event.stopPropagation()"
+            ontouchstart="event.stopPropagation()"
             onclick="removerItem(${comanda.id}, ${indice})">✕</button>
         </div>
       `).join('');
@@ -360,7 +403,7 @@
 
     // ==================== ARRASTAR E SOLTAR (apenas desktop) ====================
     function configurarInteracao(elemento, comanda) {
-      if (isMobile()) return; 
+      if (isMobile()) return;
 
       const cabecalho = elemento.querySelector(`#hdr-${comanda.id}`);
       const workspace = document.getElementById('workspace');
@@ -427,7 +470,7 @@
       const comanda = encontrarComanda(id);
       if (comanda) {
         comanda.mesa = parseInt(valor) || 0;
-        // FIX: Atualiza apenas a sidebar, sem recriar o post-it (evita fechar o teclado)
+        // NÃO recria o post-it — só atualiza a sidebar
         atualizarSidebar();
       }
     }
