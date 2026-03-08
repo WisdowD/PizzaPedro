@@ -291,8 +291,17 @@
       }
 
       elemento.innerHTML = gerarHTMLPostIt(comanda);
-      elemento.addEventListener('mousedown', () => selecionarComanda(comanda.id));
-      elemento.addEventListener('touchstart', () => selecionarComanda(comanda.id), { passive: true });
+
+      // FIX: No mobile, apenas selecionar sem recriar o DOM quando o toque é em input/button
+      elemento.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        selecionarComanda(comanda.id);
+      });
+      elemento.addEventListener('touchstart', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        selecionarComanda(comanda.id);
+      }, { passive: true });
+
       return elemento;
     }
 
@@ -306,11 +315,12 @@
         <div class="postit-header" id="hdr-${comanda.id}">
           <div class="postit-mesa">
             <span>Mesa</span>
-            <input type="number" placeholder="—" min="1" value="${comanda.mesa}"
+            <input type="number" inputmode="numeric" placeholder="—" min="1" value="${comanda.mesa || ''}"
               onchange="atualizarMesa(${comanda.id}, this.value)"
-              onmousedown="event.stopPropagation()">
+              onmousedown="event.stopPropagation()"
+              ontouchstart="event.stopPropagation()">
           </div>
-          <button class="btn-fechar" onmousedown="event.stopPropagation()"
+          <button class="btn-fechar" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
             onclick="fecharComanda(${comanda.id})">✕</button>
         </div>
         <div class="postit-itens">
@@ -323,8 +333,9 @@
           </div>
           <div class="footer-divisor">
             <label>÷ pessoas</label>
-            <input type="number" min="1" value="${comanda.pessoas || ''}" placeholder="1"
+            <input type="number" inputmode="numeric" min="1" value="${comanda.pessoas || ''}" placeholder="1"
               onmousedown="event.stopPropagation()"
+              ontouchstart="event.stopPropagation()"
               oninput="atualizarPessoas(${comanda.id}, this.value)">
             <span class="footer-por-pessoa" id="pp-${comanda.id}">${valorPorPessoa}</span>
           </div>
@@ -341,13 +352,13 @@
           <span class="postit-item-nome">${item.nome}</span>
           <span class="postit-item-qty">${item.quantidade}x</span>
           <span class="postit-item-sub">${formatarMoeda(item.subtotal)}</span>
-          <button class="postit-btn-rm" onmousedown="event.stopPropagation()"
+          <button class="postit-btn-rm" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
             onclick="removerItem(${comanda.id}, ${indice})">✕</button>
         </div>
       `).join('');
     }
 
-    // ==================== ARRASTAR E SOLTAR (apenas mobile) ====================
+    // ==================== ARRASTAR E SOLTAR (apenas desktop) ====================
     function configurarInteracao(elemento, comanda) {
       if (isMobile()) return; 
 
@@ -416,6 +427,7 @@
       const comanda = encontrarComanda(id);
       if (comanda) {
         comanda.mesa = parseInt(valor) || 0;
+        // FIX: Atualiza apenas a sidebar, sem recriar o post-it (evita fechar o teclado)
         atualizarSidebar();
       }
     }
