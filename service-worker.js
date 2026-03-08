@@ -3,6 +3,7 @@ const CACHE_NAME = "pizzaria-cache-v1";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
+  "style.css",
 ];
 
 // Instala e faz cache dos assets
@@ -20,3 +21,4 @@ self.addEventListener("fetch", (event) => {
       .then((response) => response || fetch(event.request))
   );
 });
+
