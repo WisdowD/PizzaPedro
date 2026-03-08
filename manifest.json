@@ -7,14 +7,15 @@
     "theme_color": "#d3bb9c",
     "icons": [
         {
-            "src": "./Pizzalogo.avif",
+            "src": "./PizzaLogo.avif",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/avif"
         },
         {
-            "src": "./Pizzalogo.avif",
+            "src": "./PizzaLogo.avif",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/avif",
         }
     ]
+
 }
